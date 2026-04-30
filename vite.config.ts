@@ -16,6 +16,12 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
+  optimizeDeps: {
+    exclude: ['mongodb-client-encryption'],
+  },
+  ssr: {
+    external: ['mongodb-client-encryption'],
+  },
 })
 
 export default config
