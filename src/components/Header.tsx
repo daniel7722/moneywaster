@@ -1,9 +1,10 @@
 import { Link } from '@tanstack/react-router'
 import ThemeToggle from './ThemeToggle'
 import { CreateTestCategory } from '#/server/categories'
+import { CreateTestExpense } from '#/server/expenses'
 
 export default function Header() {
-  const handleClick = async () => {
+  const handleCreateCategory = async () => {
     try {
       const result = await CreateTestCategory({
         data: { name: 'Test', icon: '😮‍💨' },
@@ -12,6 +13,25 @@ export default function Header() {
       alert(`Category created: ${result.name}`)
     } catch (error) {
       console.error('Failed to create category:', error)
+    }
+  }
+
+  const handleCreateExpense = async () => {
+    try {
+      const result = await CreateTestExpense({
+        data: {
+          categoryId: '69f39f43a4d53e3815fff757',
+          amount: 100,
+          note: 'Test expense',
+          expenseDate: new Date(),
+        },
+      })
+      console.log('Expense created:', result)
+      alert(
+        `Expense created: ${result.amount} in category ${result.categoryId}`,
+      )
+    } catch (error) {
+      console.error('Failed to create expense:', error)
     }
   }
 
@@ -27,11 +47,18 @@ export default function Header() {
             TanStack Start
           </Link>
           <button
-            onClick={handleClick}
+            onClick={handleCreateCategory}
             className="inline-flex items-center gap-2 rounded-full border border-[var(--chip-line)] bg-[var(--chip-bg)] px-3 py-1.5 text-sm text-[var(--sea-ink)] no-underline shadow-[0_8px_24px_rgba(30,90,72,0.08)] sm:px-4 sm:py-2"
           >
             <span className="h-2 w-2 rounded-full bg-[linear-gradient(90deg,#56c6be,#7ed3bf)]" />
             Create Database
+          </button>
+          <button
+            onClick={handleCreateExpense}
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--chip-line)] bg-[var(--chip-bg)] px-3 py-1.5 text-sm text-[var(--sea-ink)] no-underline shadow-[0_8px_24px_rgba(30,90,72,0.08)] sm:px-4 sm:py-2"
+          >
+            <span className="h-2 w-2 rounded-full bg-[linear-gradient(90deg,#56c6be,#7ed3bf)]" />
+            Create Expense
           </button>
         </h2>
 

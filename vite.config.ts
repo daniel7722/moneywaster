@@ -17,7 +17,7 @@ const config = defineConfig({
     viteReact(),
   ],
   optimizeDeps: {
-    exclude: ['mongodb-client-encryption'],
+    exclude: ['mongoose', 'mongodb-client-encryption'],
   },
   ssr: {
     external: ['mongodb-client-encryption'],
