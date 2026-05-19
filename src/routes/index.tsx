@@ -1,87 +1,683 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useEffect, useState, useCallback } from 'react'
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Cell,
+} from 'recharts'
+import {
+  GetDashboardStats,
+  GetBarChartData,
+  GetMonthlyTotals,
+  GetCategoryTrend,
+  GetAllCategories,
+} from '#/server/analytics'
 
-export const Route = createFileRoute('/')({ component: App })
+export const Route = createFileRoute('/')({ component: Dashboard })
 
-function App() {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Stats {
+  total: number
+  count: number
+  topCategory: { name: string; icon: string; total: number } | null
+}
+
+interface BarRow {
+  category: string
+  total: number
+}
+
+interface LineRow {
+  displayLabel: string
+  total: number
+  label?: string
+}
+
+interface Category {
+  _id: string
+  name: string
+  icon: string
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const fmt = (n: number) =>
+  new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: 'GBP',
+    maximumFractionDigits: 2,
+  }).format(n)
+
+const CRIMSON = '#e50914'
+const BAR_COLORS = [
+  '#e50914',
+  '#ff6b6b',
+  '#ff9f43',
+  '#feca57',
+  '#48dbfb',
+  '#1dd1a1',
+  '#c56cf0',
+  '#fd79a8',
+]
+
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+function currentMonthYear() {
+  const now = new Date()
+  return { month: now.getMonth() + 1, year: now.getFullYear() }
+}
+
+function buildYearOptions() {
+  const current = new Date().getFullYear()
+  return Array.from({ length: 5 }, (_, i) => current - i)
+}
+
+// ─── Custom Tooltip ───────────────────────────────────────────────────────────
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: Array<{ value: number }>
+  label?: string
+}) {
+  if (!active || !payload?.length) return null
   return (
-    <main className="page-wrap px-4 pb-8 pt-14">
-      <section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
-        <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.32),transparent_66%)]" />
-        <div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.18),transparent_66%)]" />
-        <p className="island-kicker mb-3">TanStack Start Base Template</p>
-        <h1 className="display-title mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight text-[var(--sea-ink)] sm:text-6xl">
-          Start simple, ship quickly.
-        </h1>
-        <p className="mb-8 max-w-2xl text-base text-[var(--sea-ink-soft)] sm:text-lg">
-          This base starter intentionally keeps things light: two routes, clean
-          structure, and the essentials you need to build from scratch.
+    <div
+      style={{
+        background: '#1f1f1f',
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: 6,
+        padding: '8px 14px',
+        fontSize: 13,
+        color: '#fff',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+      }}
+    >
+      {label && (
+        <p style={{ margin: '0 0 4px', color: '#b3b3b3', fontSize: 12 }}>
+          {label}
         </p>
-        <div className="flex flex-wrap gap-3">
-          <a
-            href="/about"
-            className="rounded-full border border-[rgba(50,143,151,0.3)] bg-[rgba(79,184,178,0.14)] px-5 py-2.5 text-sm font-semibold text-[var(--lagoon-deep)] no-underline transition hover:-translate-y-0.5 hover:bg-[rgba(79,184,178,0.24)]"
+      )}
+      <p style={{ margin: 0, fontWeight: 600 }}>{fmt(payload[0].value)}</p>
+    </div>
+  )
+}
+
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+
+function StatCard({
+  label,
+  value,
+  sub,
+  loading,
+}: {
+  label: string
+  value: string
+  sub?: string
+  loading: boolean
+}) {
+  return (
+    <div
+      style={{
+        background: '#141414',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 8,
+        padding: '1.25rem 1.5rem',
+        flex: 1,
+        minWidth: 160,
+      }}
+    >
+      <p
+        style={{
+          margin: '0 0 8px',
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          color: '#808080',
+        }}
+      >
+        {label}
+      </p>
+      {loading ? (
+        <div
+          style={{
+            height: 32,
+            background: '#303030',
+            borderRadius: 4,
+            animation: 'pulse 1.4s ease-in-out infinite',
+          }}
+        />
+      ) : (
+        <>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 26,
+              fontWeight: 800,
+              color: '#fff',
+              lineHeight: 1.1,
+            }}
           >
-            About This Starter
-          </a>
-          <a
-            href="https://tanstack.com/router"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-full border border-[rgba(23,58,64,0.2)] bg-white/50 px-5 py-2.5 text-sm font-semibold text-[var(--sea-ink)] no-underline transition hover:-translate-y-0.5 hover:border-[rgba(23,58,64,0.35)]"
+            {value}
+          </p>
+          {sub && (
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#b3b3b3' }}>
+              {sub}
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Chart Card wrapper ───────────────────────────────────────────────────────
+
+function ChartCard({
+  title,
+  sub,
+  children,
+  loading,
+  empty,
+  action,
+}: {
+  title: string
+  sub?: string
+  children: React.ReactNode
+  loading: boolean
+  empty: boolean
+  action?: React.ReactNode
+}) {
+  return (
+    <div
+      style={{
+        background: '#141414',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 8,
+        padding: '1.5rem',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          marginBottom: '1.25rem',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <p
+            style={{
+              margin: 0,
+              fontWeight: 700,
+              fontSize: 15,
+              color: '#fff',
+            }}
           >
-            Router Guide
-          </a>
+            {title}
+          </p>
+          {sub && (
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: '#808080' }}>
+              {sub}
+            </p>
+          )}
         </div>
-      </section>
+        {action}
+      </div>
 
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          [
-            'Type-Safe Routing',
-            'Routes and links stay in sync across every page.',
-          ],
-          [
-            'Server Functions',
-            'Call server code from your UI without creating API boilerplate.',
-          ],
-          [
-            'Streaming by Default',
-            'Ship progressively rendered responses for faster experiences.',
-          ],
-          [
-            'Tailwind Native',
-            'Design quickly with utility-first styling and reusable tokens.',
-          ],
-        ].map(([title, desc], index) => (
-          <article
-            key={title}
-            className="island-shell feature-card rise-in rounded-2xl p-5"
-            style={{ animationDelay: `${index * 90 + 80}ms` }}
+      {loading ? (
+        <div
+          style={{
+            height: 240,
+            background: '#1f1f1f',
+            borderRadius: 6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#808080',
+            fontSize: 13,
+          }}
+        >
+          Loading…
+        </div>
+      ) : empty ? (
+        <div
+          style={{
+            height: 240,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            color: '#808080',
+          }}
+        >
+          <span style={{ fontSize: 32 }}>📭</span>
+          <p style={{ margin: 0, fontSize: 13 }}>No data for this period</p>
+        </div>
+      ) : (
+        children
+      )}
+    </div>
+  )
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+function Dashboard() {
+  const { month: initMonth, year: initYear } = currentMonthYear()
+
+  const [month, setMonth] = useState(initMonth)
+  const [year, setYear] = useState(initYear)
+
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [barLoading, setBarLoading] = useState(true)
+  const [lineLoading, setLineLoading] = useState(true)
+  const [trendLoading, setTrendLoading] = useState(false)
+
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [barData, setBarData] = useState<BarRow[]>([])
+  const [lineData, setLineData] = useState<LineRow[]>([])
+  const [trendData, setTrendData] = useState<LineRow[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [selectedCatId, setSelectedCatId] = useState<string>('')
+
+  // Selected month label for the reference line on the all-time chart
+  const selectedLabel = `${year}-${String(month).padStart(2, '0')}`
+
+  // ── Load stats & bar chart whenever month/year changes ──
+  const loadMonthly = useCallback(async () => {
+    setStatsLoading(true)
+    setBarLoading(true)
+    try {
+      const [s, b] = await Promise.all([
+        GetDashboardStats({ data: { month, year } }),
+        GetBarChartData({ data: { month, year } }),
+      ])
+      setStats(s)
+      setBarData(b)
+    } finally {
+      setStatsLoading(false)
+      setBarLoading(false)
+    }
+  }, [month, year])
+
+  // ── Load all-time line chart once ──
+  const loadAllTime = useCallback(async () => {
+    setLineLoading(true)
+    try {
+      const rows = await GetMonthlyTotals()
+      setLineData(rows)
+    } finally {
+      setLineLoading(false)
+    }
+  }, [])
+
+  // ── Load categories once ──
+  const loadCategories = useCallback(async () => {
+    const cats = await GetAllCategories()
+    setCategories(cats)
+    if (cats.length > 0 && !selectedCatId) {
+      setSelectedCatId(cats[0]._id)
+    }
+  }, [selectedCatId])
+
+  // ── Load trend when category changes ──
+  const loadTrend = useCallback(async (catId: string) => {
+    if (!catId) return
+    setTrendLoading(true)
+    try {
+      const rows = await GetCategoryTrend({ data: { categoryId: catId } })
+      setTrendData(rows)
+    } finally {
+      setTrendLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadMonthly()
+  }, [loadMonthly])
+
+  useEffect(() => {
+    void loadAllTime()
+    void loadCategories()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (selectedCatId) void loadTrend(selectedCatId)
+  }, [selectedCatId, loadTrend])
+
+  const selectedCat = categories.find((c) => c._id === selectedCatId)
+  const selectedMonthName = MONTHS[month - 1]
+
+  return (
+    <main className="page-wrap" style={{ padding: '2rem 0 4rem' }}>
+      {/* ── Page header ── */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '2rem',
+          flexWrap: 'wrap',
+          gap: '1rem',
+        }}
+      >
+        <div>
+          <p className="kicker" style={{ margin: '0 0 4px' }}>
+            Overview
+          </p>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 28,
+              fontWeight: 800,
+              color: '#fff',
+            }}
           >
-            <h2 className="mb-2 text-base font-semibold text-[var(--sea-ink)]">
-              {title}
-            </h2>
-            <p className="m-0 text-sm text-[var(--sea-ink-soft)]">{desc}</p>
-          </article>
-        ))}
-      </section>
+            Dashboard
+          </h1>
+        </div>
 
-      <section className="island-shell mt-8 rounded-2xl p-6">
-        <p className="island-kicker mb-2">Quick Start</p>
-        <ul className="m-0 list-disc space-y-2 pl-5 text-sm text-[var(--sea-ink-soft)]">
-          <li>
-            Edit <code>src/routes/index.tsx</code> to customize the home page.
-          </li>
-          <li>
-            Update <code>src/components/Header.tsx</code> and{' '}
-            <code>src/components/Footer.tsx</code> for brand links.
-          </li>
-          <li>
-            Add routes in <code>src/routes</code> and tweak visual tokens in{' '}
-            <code>src/styles.css</code>.
-          </li>
-        </ul>
-      </section>
+        {/* ── Global month/year filter ── */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: '#141414',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 8,
+            padding: '6px 12px',
+          }}
+        >
+          <label style={{ fontSize: 12, color: '#808080', fontWeight: 500 }}>
+            Period
+          </label>
+          <select
+            value={month}
+            onChange={(e) => setMonth(Number(e.target.value))}
+            style={selectStyle}
+          >
+            {MONTHS.map((m, i) => (
+              <option key={m} value={i + 1}>
+                {m}
+              </option>
+            ))}
+          </select>
+          <select
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            style={selectStyle}
+          >
+            {buildYearOptions().map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* ── Stat cards ── */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 12,
+          marginBottom: '1.5rem',
+          flexWrap: 'wrap',
+        }}
+      >
+        <StatCard
+          label="Total Spent"
+          value={fmt(stats?.total ?? 0)}
+          sub={`${selectedMonthName} ${year}`}
+          loading={statsLoading}
+        />
+        <StatCard
+          label="Transactions"
+          value={String(stats?.count ?? 0)}
+          sub={`${selectedMonthName} ${year}`}
+          loading={statsLoading}
+        />
+        <StatCard
+          label="Top Category"
+          value={
+            stats?.topCategory
+              ? `${stats.topCategory.icon} ${stats.topCategory.name}`
+              : '—'
+          }
+          sub={stats?.topCategory ? fmt(stats.topCategory.total) : 'No data'}
+          loading={statsLoading}
+        />
+      </div>
+
+      {/* ── Charts grid ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        {/* Bar chart */}
+        <ChartCard
+          title={`Spending by Category`}
+          sub={`${selectedMonthName} ${year}`}
+          loading={barLoading}
+          empty={!barLoading && barData.length === 0}
+        >
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart
+              data={barData}
+              margin={{ top: 4, right: 16, left: 8, bottom: 48 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="rgba(255,255,255,0.06)"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="category"
+                tick={{ fill: '#b3b3b3', fontSize: 12 }}
+                axisLine={false}
+                tickLine={false}
+                angle={-30}
+                textAnchor="end"
+                interval={0}
+              />
+              <YAxis
+                tick={{ fill: '#808080', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v: number) => `£${v}`}
+              />
+              <Tooltip
+                content={<ChartTooltip />}
+                cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+              />
+              <Bar dataKey="total" radius={[4, 4, 0, 0]}>
+                {barData.map((_, i) => (
+                  <Cell
+                    key={i}
+                    fill={BAR_COLORS[i % BAR_COLORS.length]}
+                    fillOpacity={0.9}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        {/* All-time monthly line chart */}
+        <ChartCard
+          title="Total Spending Over Time"
+          sub={`All time — ${selectedMonthName} ${year} highlighted`}
+          loading={lineLoading}
+          empty={!lineLoading && lineData.length === 0}
+        >
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart
+              data={lineData}
+              margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="rgba(255,255,255,0.06)"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="displayLabel"
+                tick={{ fill: '#b3b3b3', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                tick={{ fill: '#808080', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v: number) => `£${v}`}
+              />
+              <Tooltip content={<ChartTooltip />} />
+              <ReferenceLine
+                x={
+                  lineData.find((d) => d.label === selectedLabel)?.displayLabel
+                }
+                stroke={CRIMSON}
+                strokeDasharray="4 3"
+                strokeWidth={1.5}
+              />
+              <Line
+                type="monotone"
+                dataKey="total"
+                stroke={CRIMSON}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{
+                  r: 4,
+                  fill: CRIMSON,
+                  stroke: '#000',
+                  strokeWidth: 2,
+                }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        {/* Category trend line chart */}
+        <ChartCard
+          title="Category Trend"
+          sub={
+            selectedCat
+              ? `${selectedCat.icon} ${selectedCat.name} — monthly spend`
+              : 'Select a category'
+          }
+          loading={trendLoading}
+          empty={!trendLoading && trendData.length === 0}
+          action={
+            categories.length > 0 ? (
+              <select
+                value={selectedCatId}
+                onChange={(e) => setSelectedCatId(e.target.value)}
+                style={{ ...selectStyle, minWidth: 140 }}
+              >
+                {categories.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.icon} {c.name}
+                  </option>
+                ))}
+              </select>
+            ) : null
+          }
+        >
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart
+              data={trendData}
+              margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="rgba(255,255,255,0.06)"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="displayLabel"
+                tick={{ fill: '#b3b3b3', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                tick={{ fill: '#808080', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v: number) => `£${v}`}
+              />
+              <Tooltip content={<ChartTooltip />} />
+              <Line
+                type="monotone"
+                dataKey="total"
+                stroke={CRIMSON}
+                strokeWidth={2}
+                dot={{ r: 3, fill: CRIMSON, stroke: 'transparent' }}
+                activeDot={{
+                  r: 5,
+                  fill: CRIMSON,
+                  stroke: '#000',
+                  strokeWidth: 2,
+                }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      {/* Pulse animation for loading skeleton */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
     </main>
   )
+}
+
+// ─── Shared select style ──────────────────────────────────────────────────────
+
+const selectStyle: React.CSSProperties = {
+  background: '#303030',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: 4,
+  color: '#fff',
+  fontSize: 13,
+  fontWeight: 500,
+  padding: '4px 8px',
+  cursor: 'pointer',
+  outline: 'none',
+  appearance: 'none',
+  WebkitAppearance: 'none',
 }

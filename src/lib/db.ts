@@ -6,7 +6,10 @@ if (!MONGO_URI) {
   throw new Error('MONGO_URI is missing')
 }
 
-export async function connectDb() {
-  const connection = await mongoose.connect(MONGO_URI!)
-  return connection
+let isConnected = false
+
+export async function connectDb(): Promise<void> {
+  if (isConnected && mongoose.connection.readyState === 1) return
+  await mongoose.connect(MONGO_URI!)
+  isConnected = true
 }
