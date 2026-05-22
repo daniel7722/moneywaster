@@ -1,7 +1,14 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle, AlertCircle, PlusCircle, Loader } from 'lucide-react'
-import { GetCategories } from '#/server/categories'
+import {
+  CheckCircle,
+  AlertCircle,
+  PlusCircle,
+  Loader,
+  X,
+  Tag,
+} from 'lucide-react'
+import { GetCategories, CreateCategory } from '#/server/categories'
 import { AddExpense } from '#/server/expenses'
 
 export const Route = createFileRoute('/log')({ component: LogExpense })
@@ -114,6 +121,408 @@ function inputStyle(hasError: boolean): React.CSSProperties {
   }
 }
 
+// ─── Emoji picker data ────────────────────────────────────────────────────────
+
+const EMOJI_OPTIONS = [
+  '🍔',
+  '🍕',
+  '🍣',
+  '🍜',
+  '☕',
+  '🧃',
+  '🍺',
+  '🛒',
+  '🚗',
+  '🚕',
+  '🚌',
+  '✈️',
+  '🚂',
+  '⛽',
+  '🅿️',
+  '🛵',
+  '🏠',
+  '💡',
+  '📺',
+  '🛋️',
+  '🔧',
+  '🧹',
+  '📦',
+  '🔑',
+  '👕',
+  '👟',
+  '👜',
+  '💄',
+  '🧴',
+  '💊',
+  '🏋️',
+  '💅',
+  '🎬',
+  '🎮',
+  '🎵',
+  '📚',
+  '🎨',
+  '🎲',
+  '🎭',
+  '⚽',
+  '💊',
+  '🏥',
+  '🩺',
+  '🧘',
+  '💉',
+  '🦷',
+  '👓',
+  '🩹',
+  '💻',
+  '📱',
+  '⌨️',
+  '🖨️',
+  '🎧',
+  '📷',
+  '🔋',
+  '💾',
+  '🎁',
+  '🎉',
+  '🪴',
+  '🐶',
+  '🐱',
+  '✂️',
+  '🧺',
+  '😮‍💨',
+]
+
+// ─── Add Category Modal ───────────────────────────────────────────────────────
+
+function AddCategoryModal({
+  onCreated,
+  onClose,
+}: {
+  onCreated: (cat: Category) => void
+  onClose: () => void
+}) {
+  const [name, setName] = useState('')
+  const [icon, setIcon] = useState(EMOJI_OPTIONS[0])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const nameRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    nameRef.current?.focus()
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!name.trim()) {
+      setError('Name is required')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const cat = await CreateCategory({ data: { name: name.trim(), icon } })
+      onCreated(cat)
+    } catch (err: unknown) {
+      const e = err as Error
+      setError(e.message ?? 'Failed to create category')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.82)',
+        zIndex: 200,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1rem',
+        backdropFilter: 'blur(6px)',
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        style={{
+          background: '#1a1a1a',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 14,
+          padding: '1.75rem',
+          width: '100%',
+          maxWidth: 460,
+          animation: 'rise-in 220ms cubic-bezier(0.16,1,0.3,1) both',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '1.5rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 8,
+                background: 'rgba(229,9,20,0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Tag size={16} color="#e50914" />
+            </div>
+            <p
+              style={{
+                margin: 0,
+                fontWeight: 700,
+                fontSize: 16,
+                color: '#fff',
+              }}
+            >
+              New Category
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 6,
+              color: '#808080',
+              cursor: 'pointer',
+              width: 30,
+              height: 30,
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        <form onSubmit={(e) => void handleSubmit(e)} noValidate>
+          <div
+            style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+          >
+            {/* Preview of selected icon + name */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                background: '#0d0d0d',
+                border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: 10,
+                padding: '12px 16px',
+              }}
+            >
+              <span style={{ fontSize: 32, lineHeight: 1 }}>{icon}</span>
+              <div>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: name.trim() ? '#fff' : '#404040',
+                  }}
+                >
+                  {name.trim() || 'Category name'}
+                </p>
+                <p
+                  style={{ margin: '2px 0 0', fontSize: 11, color: '#606060' }}
+                >
+                  Preview
+                </p>
+              </div>
+            </div>
+
+            {/* Name input */}
+            <div>
+              <label
+                htmlFor="cat-name"
+                style={{
+                  display: 'block',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  letterSpacing: '0.07em',
+                  textTransform: 'uppercase',
+                  color: '#b3b3b3',
+                  marginBottom: 8,
+                }}
+              >
+                Name
+              </label>
+              <input
+                id="cat-name"
+                ref={nameRef}
+                type="text"
+                placeholder="e.g. Groceries"
+                value={name}
+                maxLength={32}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  setError(null)
+                }}
+                style={{
+                  width: '100%',
+                  background: '#1f1f1f',
+                  border: `1px solid ${error ? '#e50914' : 'rgba(255,255,255,0.12)'}`,
+                  borderRadius: 6,
+                  color: '#fff',
+                  fontSize: 15,
+                  fontFamily: 'inherit',
+                  padding: '10px 14px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                onFocus={(e) =>
+                  (e.currentTarget.style.borderColor = error
+                    ? '#e50914'
+                    : 'rgba(229,9,20,0.6)')
+                }
+                onBlur={(e) =>
+                  (e.currentTarget.style.borderColor = error
+                    ? '#e50914'
+                    : 'rgba(255,255,255,0.12)')
+                }
+              />
+              {error && (
+                <p
+                  style={{
+                    margin: '6px 0 0',
+                    fontSize: 12,
+                    color: '#e50914',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <AlertCircle size={12} />
+                  {error}
+                </p>
+              )}
+            </div>
+
+            {/* Emoji grid */}
+            <div>
+              <p
+                style={{
+                  margin: '0 0 10px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  letterSpacing: '0.07em',
+                  textTransform: 'uppercase',
+                  color: '#b3b3b3',
+                }}
+              >
+                Icon
+              </p>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(8, 1fr)',
+                  gap: 6,
+                  background: '#0d0d0d',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  borderRadius: 10,
+                  padding: '10px',
+                  maxHeight: 192,
+                  overflowY: 'auto',
+                }}
+              >
+                {EMOJI_OPTIONS.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => setIcon(e)}
+                    title={e}
+                    style={{
+                      fontSize: 20,
+                      lineHeight: 1,
+                      padding: '6px',
+                      background:
+                        icon === e ? 'rgba(229,9,20,0.2)' : 'transparent',
+                      border: `1.5px solid ${icon === e ? '#e50914' : 'transparent'}`,
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      transition: 'all 100ms ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+              <p style={{ margin: '6px 0 0', fontSize: 11, color: '#505050' }}>
+                Or type your own emoji in the name field and pick any above.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div
+              style={{
+                display: 'flex',
+                gap: 10,
+                justifyContent: 'flex-end',
+                marginTop: 4,
+              }}
+            >
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-ghost"
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving || !name.trim()}
+                className="btn-primary"
+                style={{
+                  opacity: saving || !name.trim() ? 0.6 : 1,
+                  cursor: saving || !name.trim() ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {saving ? (
+                  <>
+                    <Loader
+                      size={14}
+                      style={{ animation: 'spin 0.8s linear infinite' }}
+                    />{' '}
+                    Creating…
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle size={14} /> Create
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ─── Category card picker ─────────────────────────────────────────────────────
 
 function CategoryPicker({
@@ -122,12 +531,14 @@ function CategoryPicker({
   onChange,
   error,
   loading,
+  onOpenAddModal,
 }: {
   categories: Category[]
   value: string
   onChange: (id: string) => void
   error?: string
   loading: boolean
+  onOpenAddModal: () => void
 }) {
   if (loading) {
     return (
@@ -149,27 +560,16 @@ function CategoryPicker({
     )
   }
 
-  if (categories.length === 0) {
-    return (
-      <div
-        style={{
-          background: '#1f1f1f',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 8,
-          padding: '1.25rem',
-          fontSize: 13,
-          color: '#808080',
-          textAlign: 'center',
-        }}
-      >
-        No categories yet. Create one first via the test button.
-      </div>
-    )
-  }
-
   return (
     <>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          flexWrap: 'wrap',
+          alignItems: 'flex-start',
+        }}
+      >
         {categories.map((cat) => {
           const selected = value === cat._id
           return (
@@ -209,7 +609,60 @@ function CategoryPicker({
             </button>
           )
         })}
+
+        {/* Add category button — same size card, dashed border */}
+        <button
+          type="button"
+          onClick={onOpenAddModal}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            width: 90,
+            padding: '12px 8px',
+            background: 'transparent',
+            border: '1.5px dashed rgba(255,255,255,0.18)',
+            borderRadius: 8,
+            cursor: 'pointer',
+            transition: 'border-color 150ms ease, background 150ms ease',
+            outline: 'none',
+            color: '#606060',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(229,9,20,0.5)'
+            e.currentTarget.style.background = 'rgba(229,9,20,0.06)'
+            e.currentTarget.style.color = '#e50914'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = '#606060'
+          }}
+        >
+          <PlusCircle size={20} />
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              textAlign: 'center',
+              lineHeight: 1.2,
+            }}
+          >
+            New
+          </span>
+        </button>
       </div>
+
+      {categories.length === 0 && !loading && (
+        <p style={{ margin: '10px 0 0', fontSize: 13, color: '#606060' }}>
+          No categories yet — click{' '}
+          <strong style={{ color: '#b3b3b3' }}>New</strong> to create your first
+          one.
+        </p>
+      )}
+
       <FieldError msg={error} />
     </>
   )
@@ -309,6 +762,16 @@ function LogExpense() {
   const [errors, setErrors] = useState<FieldErrors>({})
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
+
+  const [showAddModal, setShowAddModal] = useState(false)
+
+  function handleCategoryCreated(cat: Category) {
+    setCategories((prev) => [...prev, cat])
+    setForm((f) => ({ ...f, categoryId: cat._id }))
+    setErrors((e) => ({ ...e, categoryId: undefined }))
+    setShowAddModal(false)
+    setTimeout(() => amountRef.current?.focus(), 50)
+  }
 
   // Track last successful submission for the success banner
   const [lastAdded, setLastAdded] = useState<{
@@ -456,6 +919,7 @@ function LogExpense() {
                     onChange={(id) => set('categoryId', id)}
                     error={errors.categoryId}
                     loading={catsLoading}
+                    onOpenAddModal={() => setShowAddModal(true)}
                   />
                 </div>
 
@@ -716,8 +1180,14 @@ function LogExpense() {
         </div>
       </div>
 
+      {showAddModal && (
+        <AddCategoryModal
+          onCreated={handleCategoryCreated}
+          onClose={() => setShowAddModal(false)}
+        />
+      )}
+
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
         @keyframes rise-in {
           from { opacity:0; transform:translateY(8px); }
