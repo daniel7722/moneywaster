@@ -89,6 +89,13 @@ export default function Header() {
           >
             Ledger
           </Link>
+          <Link
+            to="/categories"
+            className="nav-link"
+            activeProps={{ className: 'nav-link is-active' }}
+          >
+            Categories
+          </Link>
         </div>
 
         {/* Right side CTA */}

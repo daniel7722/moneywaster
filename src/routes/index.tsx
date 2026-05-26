@@ -290,6 +290,88 @@ function ChartCard({
   )
 }
 
+// ─── Category multi-select pills ─────────────────────────────────────────────
+
+function CategoryPills({
+  categories,
+  selectedIds,
+  onChange,
+}: {
+  categories: Category[]
+  selectedIds: string[]
+  onChange: (ids: string[]) => void
+}) {
+  function toggle(id: string) {
+    if (selectedIds.includes(id)) {
+      // keep at least one selected
+      if (selectedIds.length === 1) return
+      onChange(selectedIds.filter((s) => s !== id))
+    } else {
+      onChange([...selectedIds, id])
+    }
+  }
+
+  function selectAll() {
+    onChange(categories.map((c) => c._id))
+  }
+
+  const allSelected = selectedIds.length === categories.length
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 6,
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        maxWidth: 520,
+      }}
+    >
+      <button
+        type="button"
+        onClick={selectAll}
+        style={{
+          background: allSelected ? 'rgba(229,9,20,0.2)' : '#1f1f1f',
+          border: `1px solid ${allSelected ? '#e50914' : 'rgba(255,255,255,0.1)'}`,
+          borderRadius: 20,
+          color: allSelected ? '#fff' : '#808080',
+          padding: '3px 10px',
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: 'pointer',
+          whiteSpace: 'nowrap',
+          transition: 'all 120ms ease',
+        }}
+      >
+        All
+      </button>
+      {categories.map((c) => {
+        const sel = selectedIds.includes(c._id)
+        return (
+          <button
+            key={c._id}
+            type="button"
+            onClick={() => toggle(c._id)}
+            style={{
+              background: sel ? 'rgba(229,9,20,0.2)' : '#1f1f1f',
+              border: `1px solid ${sel ? '#e50914' : 'rgba(255,255,255,0.1)'}`,
+              borderRadius: 20,
+              color: sel ? '#fff' : '#808080',
+              padding: '3px 10px',
+              fontSize: 12,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 120ms ease',
+            }}
+          >
+            {c.icon} {c.name}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 function Dashboard() {
@@ -308,9 +390,8 @@ function Dashboard() {
   const [lineData, setLineData] = useState<LineRow[]>([])
   const [trendData, setTrendData] = useState<LineRow[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [selectedCatId, setSelectedCatId] = useState<string>('')
+  const [selectedCatIds, setSelectedCatIds] = useState<string[]>([])
 
-  // Selected month label for the reference line on the all-time chart
   const selectedLabel = `${year}-${String(month).padStart(2, '0')}`
 
   // ── Load stats & bar chart whenever month/year changes ──
@@ -345,17 +426,17 @@ function Dashboard() {
   const loadCategories = useCallback(async () => {
     const cats = await GetAllCategories()
     setCategories(cats)
-    if (cats.length > 0 && !selectedCatId) {
-      setSelectedCatId(cats[0]._id)
+    if (cats.length > 0 && selectedCatIds.length === 0) {
+      setSelectedCatIds([cats[0]._id])
     }
-  }, [selectedCatId])
+  }, [selectedCatIds.length])
 
-  // ── Load trend when category changes ──
-  const loadTrend = useCallback(async (catId: string) => {
-    if (!catId) return
+  // ── Load trend when selected categories change ──
+  const loadTrend = useCallback(async (catIds: string[]) => {
+    if (!catIds.length) return
     setTrendLoading(true)
     try {
-      const rows = await GetCategoryTrend({ data: { categoryId: catId } })
+      const rows = await GetCategoryTrend({ data: { categoryIds: catIds } })
       setTrendData(rows)
     } finally {
       setTrendLoading(false)
@@ -372,10 +453,21 @@ function Dashboard() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (selectedCatId) void loadTrend(selectedCatId)
-  }, [selectedCatId, loadTrend])
+    if (selectedCatIds.length > 0) void loadTrend(selectedCatIds)
+  }, [selectedCatIds, loadTrend])
 
-  const selectedCat = categories.find((c) => c._id === selectedCatId)
+  // ── Trend chart label ──
+  const trendSub = () => {
+    if (categories.length === 0) return 'Select a category'
+    if (selectedCatIds.length === categories.length)
+      return 'All categories — monthly spend'
+    if (selectedCatIds.length === 1) {
+      const cat = categories.find((c) => c._id === selectedCatIds[0])
+      return cat ? `${cat.icon} ${cat.name} — monthly spend` : 'Monthly spend'
+    }
+    return `${selectedCatIds.length} categories — combined monthly spend`
+  }
+
   const selectedMonthName = MONTHS[month - 1]
 
   return (
@@ -590,26 +682,16 @@ function Dashboard() {
         {/* Category trend line chart */}
         <ChartCard
           title="Category Trend"
-          sub={
-            selectedCat
-              ? `${selectedCat.icon} ${selectedCat.name} — monthly spend`
-              : 'Select a category'
-          }
+          sub={trendSub()}
           loading={trendLoading}
           empty={!trendLoading && trendData.length === 0}
           action={
             categories.length > 0 ? (
-              <select
-                value={selectedCatId}
-                onChange={(e) => setSelectedCatId(e.target.value)}
-                style={{ ...selectStyle, minWidth: 140 }}
-              >
-                {categories.map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.icon} {c.name}
-                  </option>
-                ))}
-              </select>
+              <CategoryPills
+                categories={categories}
+                selectedIds={selectedCatIds}
+                onChange={setSelectedCatIds}
+              />
             ) : null
           }
         >

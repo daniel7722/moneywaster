@@ -12,11 +12,6 @@ const monthYearValidator = (input: { month: number; year: number }) => {
   return input
 }
 
-const categoryIdValidator = (input: { categoryId: string }) => {
-  if (!input.categoryId) throw new Error('categoryId required')
-  return input
-}
-
 // ─── Helper: format month label ───────────────────────────────────────────────
 
 function monthLabel(year: number, month: number): string {
@@ -28,7 +23,7 @@ function monthLabel(year: number, month: number): string {
 
 // ─── 1. Stat cards ────────────────────────────────────────────────────────────
 
-export const GetDashboardStats = createServerFn({ method: 'GET' })
+export const GetDashboardStats = createServerFn({ method: 'POST' })
   .inputValidator(monthYearValidator)
   .handler(async ({ data: { month, year } }) => {
     await connectDb()
@@ -47,7 +42,6 @@ export const GetDashboardStats = createServerFn({ method: 'GET' })
       },
     ])
 
-    // Biggest category this month
     const [topCat] = await Expenses.aggregate([
       { $match: { expenseDate: { $gte: start, $lt: end } } },
       { $group: { _id: '$categoryId', total: { $sum: '$amount' } } },
@@ -86,7 +80,7 @@ export const GetDashboardStats = createServerFn({ method: 'GET' })
 
 // ─── 2. Bar chart — spending by category for a given month ───────────────────
 
-export const GetBarChartData = createServerFn({ method: 'GET' })
+export const GetBarChartData = createServerFn({ method: 'POST' })
   .inputValidator(monthYearValidator)
   .handler(async ({ data: { month, year } }) => {
     await connectDb()
@@ -121,7 +115,7 @@ export const GetBarChartData = createServerFn({ method: 'GET' })
 
 // ─── 3. Line chart — monthly totals all time ─────────────────────────────────
 
-export const GetMonthlyTotals = createServerFn({ method: 'GET' }).handler(
+export const GetMonthlyTotals = createServerFn({ method: 'POST' }).handler(
   async () => {
     await connectDb()
 
@@ -151,7 +145,6 @@ export const GetMonthlyTotals = createServerFn({ method: 'GET' }).handler(
               },
             },
           },
-          displayLabel: 'placeholder', // computed client-side
           year: '$_id.year',
           month: '$_id.month',
           total: 1,
@@ -159,7 +152,6 @@ export const GetMonthlyTotals = createServerFn({ method: 'GET' }).handler(
       },
     ])
 
-    // Build display label on the server (no Intl issues in Node)
     return rows.map(
       (r: { label: string; year: number; month: number; total: number }) => ({
         label: r.label,
@@ -170,15 +162,20 @@ export const GetMonthlyTotals = createServerFn({ method: 'GET' }).handler(
   },
 )
 
-// ─── 4. Category trend — monthly totals for one category ─────────────────────
+// ─── 4. Category trend — monthly totals for one or more categories ────────────
 
-export const GetCategoryTrend = createServerFn({ method: 'GET' })
-  .inputValidator(categoryIdValidator)
-  .handler(async ({ data: { categoryId } }) => {
+export const GetCategoryTrend = createServerFn({ method: 'POST' })
+  .inputValidator((input: { categoryIds: string[] }) => {
+    if (!input.categoryIds?.length) throw new Error('categoryIds required')
+    return input
+  })
+  .handler(async ({ data: { categoryIds } }) => {
     await connectDb()
 
+    const objectIds = categoryIds.map((id) => new mongoose.Types.ObjectId(id))
+
     const rows = await Expenses.aggregate([
-      { $match: { categoryId: new mongoose.Types.ObjectId(categoryId) } },
+      { $match: { categoryId: { $in: objectIds } } },
       {
         $group: {
           _id: {
@@ -201,7 +198,7 @@ export const GetCategoryTrend = createServerFn({ method: 'GET' })
 
 // ─── 5. All categories (for the trend selector dropdown) ─────────────────────
 
-export const GetAllCategories = createServerFn({ method: 'GET' }).handler(
+export const GetAllCategories = createServerFn({ method: 'POST' }).handler(
   async () => {
     await connectDb()
     const cats = await Categories.find({}).lean()

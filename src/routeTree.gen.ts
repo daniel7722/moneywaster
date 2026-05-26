@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LogRouteImport } from './routes/log'
 import { Route as LedgerRouteImport } from './routes/ledger'
+import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -22,6 +23,11 @@ const LogRoute = LogRouteImport.update({
 const LedgerRoute = LedgerRouteImport.update({
   id: '/ledger',
   path: '/ledger',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CategoriesRoute = CategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutRoute = AboutRouteImport.update({
@@ -38,12 +44,14 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/categories': typeof CategoriesRoute
   '/ledger': typeof LedgerRoute
   '/log': typeof LogRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/categories': typeof CategoriesRoute
   '/ledger': typeof LedgerRoute
   '/log': typeof LogRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/categories': typeof CategoriesRoute
   '/ledger': typeof LedgerRoute
   '/log': typeof LogRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/ledger' | '/log'
+  fullPaths: '/' | '/about' | '/categories' | '/ledger' | '/log'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/ledger' | '/log'
-  id: '__root__' | '/' | '/about' | '/ledger' | '/log'
+  to: '/' | '/about' | '/categories' | '/ledger' | '/log'
+  id: '__root__' | '/' | '/about' | '/categories' | '/ledger' | '/log'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  CategoriesRoute: typeof CategoriesRoute
   LedgerRoute: typeof LedgerRoute
   LogRoute: typeof LogRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/ledger'
       fullPath: '/ledger'
       preLoaderRoute: typeof LedgerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/categories': {
+      id: '/categories'
+      path: '/categories'
+      fullPath: '/categories'
+      preLoaderRoute: typeof CategoriesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  CategoriesRoute: CategoriesRoute,
   LedgerRoute: LedgerRoute,
   LogRoute: LogRoute,
 }
