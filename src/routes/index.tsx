@@ -663,7 +663,7 @@ function Dashboard() {
         {/* Category history — 6-month grouped bars */}
         <ChartCard
           title="Category Breakdown — Last 6 Months"
-          sub={`Each bar group is one month; bars are categories`}
+          sub={`Each bar group is one category; bars are the last 6 months`}
           loading={comparisonLoading}
           empty={
             !comparisonLoading &&
@@ -674,14 +674,16 @@ function Dashboard() {
             <>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart
-                  data={comparisonData.months.map((m, mi) => {
-                    const row: Record<string, string | number> = { month: m }
-                    for (const cat of comparisonData.categories) {
-                      row[cat.label] = cat.values[mi]
+                  data={comparisonData.categories.map((cat) => {
+                    const row: Record<string, string | number> = {
+                      category: cat.label,
                     }
+                    comparisonData.months.forEach((m, mi) => {
+                      row[m] = cat.values[mi]
+                    })
                     return row
                   })}
-                  margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+                  margin={{ top: 4, right: 16, left: 8, bottom: 48 }}
                 >
                   <CartesianGrid
                     strokeDasharray="3 3"
@@ -689,10 +691,13 @@ function Dashboard() {
                     vertical={false}
                   />
                   <XAxis
-                    dataKey="month"
-                    tick={{ fill: '#b3b3b3', fontSize: 11 }}
+                    dataKey="category"
+                    tick={{ fill: '#b3b3b3', fontSize: 12 }}
                     axisLine={false}
                     tickLine={false}
+                    angle={-30}
+                    textAnchor="end"
+                    interval={0}
                   />
                   <YAxis
                     tick={{ fill: '#808080', fontSize: 11 }}
@@ -704,12 +709,14 @@ function Dashboard() {
                     content={<CategoryHistoryTooltip />}
                     cursor={{ fill: 'rgba(255,255,255,0.03)' }}
                   />
-                  {comparisonData.categories.map((cat, i) => (
+                  {comparisonData.months.map((m, i) => (
                     <Bar
-                      key={cat.id}
-                      dataKey={cat.label}
+                      key={m}
+                      dataKey={m}
                       fill={HISTORY_COLORS[i % HISTORY_COLORS.length]}
-                      fillOpacity={0.85}
+                      fillOpacity={
+                        i === comparisonData.months.length - 1 ? 1 : 0.55
+                      }
                       radius={[3, 3, 0, 0]}
                     />
                   ))}
@@ -724,15 +731,18 @@ function Dashboard() {
                   marginTop: 12,
                 }}
               >
-                {comparisonData.categories.map((cat, i) => (
+                {comparisonData.months.map((m, i) => (
                   <div
-                    key={cat.id}
+                    key={m}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: 6,
                       fontSize: 12,
-                      color: '#b3b3b3',
+                      color:
+                        i === comparisonData.months.length - 1
+                          ? '#fff'
+                          : '#808080',
                     }}
                   >
                     <span
@@ -741,64 +751,19 @@ function Dashboard() {
                         height: 10,
                         borderRadius: 2,
                         background: HISTORY_COLORS[i % HISTORY_COLORS.length],
+                        opacity:
+                          i === comparisonData.months.length - 1 ? 1 : 0.55,
                         display: 'inline-block',
                         flexShrink: 0,
                       }}
                     />
-                    {cat.label}
+                    {m}
+                    {i === comparisonData.months.length - 1 ? ' ✦' : ''}
                   </div>
                 ))}
               </div>
             </>
           )}
-        </ChartCard>
-        {/* Bar chart */}
-        <ChartCard
-          title={`Spending by Category`}
-          sub={`${selectedMonthName} ${year}`}
-          loading={barLoading}
-          empty={!barLoading && barData.length === 0}
-        >
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart
-              data={barData}
-              margin={{ top: 4, right: 16, left: 8, bottom: 48 }}
-            >
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="rgba(255,255,255,0.06)"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="category"
-                tick={{ fill: '#b3b3b3', fontSize: 12 }}
-                axisLine={false}
-                tickLine={false}
-                angle={-30}
-                textAnchor="end"
-                interval={0}
-              />
-              <YAxis
-                tick={{ fill: '#808080', fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v: number) => `£${v}`}
-              />
-              <Tooltip
-                content={<ChartTooltip />}
-                cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-              />
-              <Bar dataKey="total" radius={[4, 4, 0, 0]}>
-                {barData.map((_, i) => (
-                  <Cell
-                    key={i}
-                    fill={BAR_COLORS[i % BAR_COLORS.length]}
-                    fillOpacity={0.9}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
         </ChartCard>
 
         {/* All-time monthly line chart */}
