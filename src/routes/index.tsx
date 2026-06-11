@@ -19,6 +19,7 @@ import {
   GetMonthlyTotals,
   GetCategoryTrend,
   GetAllCategories,
+  GetCategoryMonthlyComparison,
 } from '#/server/analytics'
 
 export const Route = createFileRoute('/')({ component: Dashboard })
@@ -46,6 +47,17 @@ interface Category {
   _id: string
   name: string
   icon: string
+}
+
+interface ComparisonData {
+  months: string[]
+  categories: Array<{
+    id: string
+    name: string
+    icon: string
+    label: string
+    values: number[]
+  }>
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -371,6 +383,71 @@ function CategoryPills({
     </div>
   )
 }
+// ─── Category History Chart ───────────────────────────────────────────────────
+
+const HISTORY_COLORS = [
+  '#e50914',
+  '#ff6b6b',
+  '#ff9f43',
+  '#feca57',
+  '#48dbfb',
+  '#1dd1a1',
+  '#c56cf0',
+  '#fd79a8',
+]
+
+function CategoryHistoryTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: Array<{ name: string; value: number; color: string }>
+  label?: string
+}) {
+  if (!active || !payload?.length) return null
+  return (
+    <div
+      style={{
+        background: '#1f1f1f',
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: 6,
+        padding: '10px 14px',
+        fontSize: 13,
+        color: '#fff',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        minWidth: 160,
+      }}
+    >
+      <p
+        style={{
+          margin: '0 0 6px',
+          color: '#b3b3b3',
+          fontSize: 12,
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </p>
+      {payload.map((p) => (
+        <div
+          key={p.name}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 16,
+            marginBottom: 3,
+          }}
+        >
+          <span style={{ color: p.color }}>{p.name}</span>
+          <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+            {fmt(p.value)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
@@ -392,22 +469,31 @@ function Dashboard() {
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedCatIds, setSelectedCatIds] = useState<string[]>([])
 
+  const [comparisonData, setComparisonData] = useState<ComparisonData | null>(
+    null,
+  )
+  const [comparisonLoading, setComparisonLoading] = useState(true)
+
   const selectedLabel = `${year}-${String(month).padStart(2, '0')}`
 
   // ── Load stats & bar chart whenever month/year changes ──
   const loadMonthly = useCallback(async () => {
     setStatsLoading(true)
     setBarLoading(true)
+    setComparisonLoading(true)
     try {
-      const [s, b] = await Promise.all([
+      const [s, b, c] = await Promise.all([
         GetDashboardStats({ data: { month, year } }),
         GetBarChartData({ data: { month, year } }),
+        GetCategoryMonthlyComparison({ data: { month, year } }),
       ])
       setStats(s)
       setBarData(b)
+      setComparisonData(c)
     } finally {
       setStatsLoading(false)
       setBarLoading(false)
+      setComparisonLoading(false)
     }
   }, [month, year])
 
@@ -574,6 +660,98 @@ function Dashboard() {
 
       {/* ── Charts grid ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        {/* Category history — 6-month grouped bars */}
+        <ChartCard
+          title="Category Breakdown — Last 6 Months"
+          sub={`Each bar group is one month; bars are categories`}
+          loading={comparisonLoading}
+          empty={
+            !comparisonLoading &&
+            (!comparisonData || comparisonData.categories.length === 0)
+          }
+        >
+          {comparisonData && comparisonData.categories.length > 0 && (
+            <>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart
+                  data={comparisonData.months.map((m, mi) => {
+                    const row: Record<string, string | number> = { month: m }
+                    for (const cat of comparisonData.categories) {
+                      row[cat.label] = cat.values[mi]
+                    }
+                    return row
+                  })}
+                  margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="rgba(255,255,255,0.06)"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fill: '#b3b3b3', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: '#808080', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v: number) => `£${v}`}
+                  />
+                  <Tooltip
+                    content={<CategoryHistoryTooltip />}
+                    cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                  />
+                  {comparisonData.categories.map((cat, i) => (
+                    <Bar
+                      key={cat.id}
+                      dataKey={cat.label}
+                      fill={HISTORY_COLORS[i % HISTORY_COLORS.length]}
+                      fillOpacity={0.85}
+                      radius={[3, 3, 0, 0]}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+              {/* Legend */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '8px 16px',
+                  marginTop: 12,
+                }}
+              >
+                {comparisonData.categories.map((cat, i) => (
+                  <div
+                    key={cat.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 12,
+                      color: '#b3b3b3',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: 2,
+                        background: HISTORY_COLORS[i % HISTORY_COLORS.length],
+                        display: 'inline-block',
+                        flexShrink: 0,
+                      }}
+                    />
+                    {cat.label}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </ChartCard>
         {/* Bar chart */}
         <ChartCard
           title={`Spending by Category`}

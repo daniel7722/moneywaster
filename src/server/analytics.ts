@@ -198,6 +198,97 @@ export const GetCategoryTrend = createServerFn({ method: 'POST' })
     )
   })
 
+// ─── 5b. Per-category spend for the selected month + prior 5 months ──────────
+
+export const GetCategoryMonthlyComparison = createServerFn({ method: 'GET' })
+  .inputValidator(monthYearValidator)
+  .handler(async ({ data: { month, year } }) => {
+    await connectDb()
+
+    // Build 6 month windows: [month-5 … month] inclusive
+    const windows: Array<{ year: number; month: number; label: string }> = []
+    for (let i = 5; i >= 0; i--) {
+      let m = month - i
+      let y = year
+      while (m <= 0) {
+        m += 12
+        y -= 1
+      }
+      windows.push({ year: y, month: m, label: monthLabel(y, m) })
+    }
+
+    const earliest = windows[0]
+    const start = new Date(earliest.year, earliest.month - 1, 1)
+    const end = new Date(year, month, 1)
+
+    const rows = await Expenses.aggregate([
+      { $match: { expenseDate: { $gte: start, $lt: end } } },
+      {
+        $group: {
+          _id: {
+            categoryId: '$categoryId',
+            year: { $year: '$expenseDate' },
+            month: { $month: '$expenseDate' },
+          },
+          total: { $sum: '$amount' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'categories',
+          localField: '_id.categoryId',
+          foreignField: '_id',
+          as: 'cat',
+        },
+      },
+      { $unwind: '$cat' },
+      {
+        $project: {
+          _id: 0,
+          categoryId: { $toString: '$_id.categoryId' },
+          categoryName: '$cat.name',
+          categoryIcon: '$cat.icon',
+          year: '$_id.year',
+          month: '$_id.month',
+          total: 1,
+        },
+      },
+    ])
+
+    type Row = {
+      categoryId: string
+      categoryName: string
+      categoryIcon: string
+      year: number
+      month: number
+      total: number
+    }
+
+    const lookup = new Map<string, number>()
+    for (const r of rows as Row[]) {
+      lookup.set(`${r.categoryId}|${r.year}-${r.month}`, r.total)
+    }
+
+    const catMap = new Map<string, { name: string; icon: string }>()
+    for (const r of rows as Row[]) {
+      if (!catMap.has(r.categoryId))
+        catMap.set(r.categoryId, { name: r.categoryName, icon: r.categoryIcon })
+    }
+
+    return {
+      months: windows.map((w) => w.label),
+      categories: Array.from(catMap.entries()).map(([id, { name, icon }]) => ({
+        id,
+        name,
+        icon,
+        label: `${icon} ${name}`,
+        values: windows.map(
+          (w) => lookup.get(`${id}|${w.year}-${w.month}`) ?? 0,
+        ),
+      })),
+    }
+  })
+
 // ─── 5. All categories (for the trend selector dropdown) ─────────────────────
 
 export const GetAllCategories = createServerFn({ method: 'POST' }).handler(
