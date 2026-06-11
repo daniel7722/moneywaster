@@ -55,7 +55,7 @@ export const GetDashboardStats = createServerFn({ method: 'POST' })
           as: 'cat',
         },
       },
-      { $unwind: { path: '$cat', preserveNullAndEmpty: true } },
+      { $unwind: { path: '$cat', preserveNullAndEmptyArrays: true } },
       {
         $project: {
           name: '$cat.name',
@@ -104,7 +104,9 @@ export const GetBarChartData = createServerFn({ method: 'POST' })
       {
         $project: {
           _id: 0,
-          category: { $concat: ['$cat.icon', ' ', '$cat.name'] },
+          category: {
+            $concat: [{ $ifNull: ['$cat.icon', ' '] }, ' ', '$cat.name'],
+          },
           total: 1,
         },
       },
