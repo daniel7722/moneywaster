@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import mongoose from 'mongoose'
 import { connectDb } from '#/lib/db'
 import { Expenses } from '#/models/expenses'
+import { Earnings } from '#/models/earnings'
 import { Categories } from '#/models/categories'
 
 // ─── Validators ──────────────────────────────────────────────────────────────
@@ -117,50 +118,70 @@ export const GetBarChartData = createServerFn({ method: 'POST' })
 
 // ─── 3. Line chart — monthly totals all time ─────────────────────────────────
 
-export const GetMonthlyTotals = createServerFn({ method: 'POST' }).handler(
+export const GetMonthlyTotals = createServerFn({ method: 'GET' }).handler(
   async () => {
     await connectDb()
 
-    const rows = await Expenses.aggregate([
-      {
-        $group: {
-          _id: {
-            year: { $year: '$expenseDate' },
-            month: { $month: '$expenseDate' },
-          },
-          total: { $sum: '$amount' },
-        },
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1 } },
-      {
-        $project: {
-          _id: 0,
-          label: {
-            $dateToString: {
-              format: '%Y-%m',
-              date: {
-                $dateFromParts: {
-                  year: '$_id.year',
-                  month: '$_id.month',
-                  day: 1,
-                },
-              },
+    const [spendRows, earnRows] = await Promise.all([
+      Expenses.aggregate([
+        {
+          $group: {
+            _id: {
+              year: { $year: '$expenseDate' },
+              month: { $month: '$expenseDate' },
             },
+            total: { $sum: '$amount' },
           },
-          year: '$_id.year',
-          month: '$_id.month',
-          total: 1,
         },
-      },
+        { $sort: { '_id.year': 1, '_id.month': 1 } },
+      ]),
+      Earnings.aggregate([
+        {
+          $group: {
+            _id: {
+              year: { $year: '$earnedDate' },
+              month: { $month: '$earnedDate' },
+            },
+            total: { $sum: '$amount' },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } },
+      ]),
     ])
 
-    return rows.map(
-      (r: { label: string; year: number; month: number; total: number }) => ({
-        label: r.label,
-        displayLabel: monthLabel(r.year, r.month),
-        total: r.total,
-      }),
-    )
+    // Union all months that appear in either dataset
+    const monthSet = new Set<string>()
+    const spendMap = new Map<string, number>()
+    const earnMap = new Map<string, number>()
+
+    for (const r of spendRows as Array<{
+      _id: { year: number; month: number }
+      total: number
+    }>) {
+      const key = `${r._id.year}-${String(r._id.month).padStart(2, '0')}`
+      monthSet.add(key)
+      spendMap.set(key, r.total)
+    }
+    for (const r of earnRows as Array<{
+      _id: { year: number; month: number }
+      total: number
+    }>) {
+      const key = `${r._id.year}-${String(r._id.month).padStart(2, '0')}`
+      monthSet.add(key)
+      earnMap.set(key, r.total)
+    }
+
+    return Array.from(monthSet)
+      .sort()
+      .map((key) => {
+        const [y, m] = key.split('-').map(Number)
+        return {
+          label: key,
+          displayLabel: monthLabel(y, m),
+          spending: spendMap.get(key) ?? 0,
+          earnings: earnMap.get(key) ?? 0,
+        }
+      })
   },
 )
 

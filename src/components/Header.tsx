@@ -96,6 +96,13 @@ export default function Header() {
           >
             Categories
           </Link>
+          <Link
+            to="/earn"
+            className="nav-link"
+            activeProps={{ className: 'nav-link is-active' }}
+          >
+            Log Earning
+          </Link>
         </div>
 
         {/* Right side CTA */}

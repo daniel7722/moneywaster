@@ -5,6 +5,8 @@ import {
   Bar,
   LineChart,
   Line,
+  ComposedChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -38,9 +40,10 @@ interface BarRow {
 }
 
 interface LineRow {
+  label: string
   displayLabel: string
-  total: number
-  label?: string
+  spending: number
+  earnings: number
 }
 
 interface Category {
@@ -136,6 +139,92 @@ function ChartTooltip({
         </p>
       )}
       <p style={{ margin: 0, fontWeight: 600 }}>{fmt(payload[0].value)}</p>
+    </div>
+  )
+}
+
+function SpendEarnTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: Array<{ name: string; value: number; color: string }>
+  label?: string
+}) {
+  if (!active || !payload?.length) return null
+  const earn = payload.find((p) => p.name === 'earnings')
+  const spend = payload.find((p) => p.name === 'spending')
+  const net = (earn?.value ?? 0) - (spend?.value ?? 0)
+  return (
+    <div
+      style={{
+        background: '#1f1f1f',
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: 6,
+        padding: '10px 14px',
+        fontSize: 13,
+        color: '#fff',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        minWidth: 160,
+      }}
+    >
+      {label && (
+        <p
+          style={{
+            margin: '0 0 8px',
+            color: '#b3b3b3',
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          {label}
+        </p>
+      )}
+      {earn && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 16,
+            marginBottom: 3,
+          }}
+        >
+          <span style={{ color: '#22c55e' }}>Earnings</span>
+          <span style={{ fontWeight: 600 }}>{fmt(earn.value)}</span>
+        </div>
+      )}
+      {spend && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 16,
+            marginBottom: 3,
+          }}
+        >
+          <span style={{ color: CRIMSON }}>Spending</span>
+          <span style={{ fontWeight: 600 }}>{fmt(spend.value)}</span>
+        </div>
+      )}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 16,
+          marginTop: 6,
+          paddingTop: 6,
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+        }}
+      >
+        <span style={{ color: '#808080' }}>Net</span>
+        <span
+          style={{ fontWeight: 700, color: net >= 0 ? '#22c55e' : CRIMSON }}
+        >
+          {net >= 0 ? '+' : ''}
+          {fmt(net)}
+        </span>
+      </div>
     </div>
   )
 }
@@ -766,60 +855,184 @@ function Dashboard() {
           )}
         </ChartCard>
 
-        {/* All-time monthly line chart */}
+        {/* All-time monthly line chart — spending vs earnings */}
         <ChartCard
-          title="Total Spending Over Time"
+          title="Total Spending vs Earnings Over Time"
           sub={`All time — ${selectedMonthName} ${year} highlighted`}
           loading={lineLoading}
           empty={!lineLoading && lineData.length === 0}
         >
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart
-              data={lineData}
-              margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+          <>
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart
+                data={lineData}
+                margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+              >
+                <defs>
+                  <linearGradient id="netGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#e50914" stopOpacity={0.08} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="rgba(255,255,255,0.06)"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="displayLabel"
+                  tick={{ fill: '#b3b3b3', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tick={{ fill: '#808080', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v: number) => `£${v}`}
+                />
+                <Tooltip content={<SpendEarnTooltip />} />
+                <ReferenceLine
+                  x={
+                    lineData.find((d) => d.label === selectedLabel)
+                      ?.displayLabel
+                  }
+                  stroke={CRIMSON}
+                  strokeDasharray="4 3"
+                  strokeWidth={1.5}
+                />
+                {/* Filled area between the two lines */}
+                <Area
+                  type="monotone"
+                  dataKey="earnings"
+                  stroke="transparent"
+                  fill="url(#netGradient)"
+                  fillOpacity={1}
+                  legendType="none"
+                  activeDot={false}
+                  isAnimationActive={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="earnings"
+                  stroke="#22c55e"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{
+                    r: 4,
+                    fill: '#22c55e',
+                    stroke: '#000',
+                    strokeWidth: 2,
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="spending"
+                  stroke={CRIMSON}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{
+                    r: 4,
+                    fill: CRIMSON,
+                    stroke: '#000',
+                    strokeWidth: 2,
+                  }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+
+            {/* Legend */}
+            <div
+              style={{
+                display: 'flex',
+                gap: 20,
+                marginTop: 10,
+                flexWrap: 'wrap',
+              }}
             >
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="rgba(255,255,255,0.06)"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="displayLabel"
-                tick={{ fill: '#b3b3b3', fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                tick={{ fill: '#808080', fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v: number) => `£${v}`}
-              />
-              <Tooltip content={<ChartTooltip />} />
-              <ReferenceLine
-                x={
-                  lineData.find((d) => d.label === selectedLabel)?.displayLabel
-                }
-                stroke={CRIMSON}
-                strokeDasharray="4 3"
-                strokeWidth={1.5}
-              />
-              <Line
-                type="monotone"
-                dataKey="total"
-                stroke={CRIMSON}
-                strokeWidth={2}
-                dot={false}
-                activeDot={{
-                  r: 4,
-                  fill: CRIMSON,
-                  stroke: '#000',
-                  strokeWidth: 2,
-                }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+              {[
+                { color: '#22c55e', label: 'Earnings' },
+                { color: CRIMSON, label: 'Spending' },
+              ].map(({ color, label }) => (
+                <div
+                  key={label}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: '#b3b3b3',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 24,
+                      height: 2,
+                      background: color,
+                      display: 'inline-block',
+                      borderRadius: 1,
+                    }}
+                  />
+                  {label}
+                </div>
+              ))}
+            </div>
+
+            {/* Footnote — net profit from Oct 2025 onwards */}
+            {(() => {
+              const cutoff = lineData.findIndex((d) => d.label >= '2025-10')
+              if (cutoff === -1) return null
+              const slice = lineData.slice(cutoff)
+              const netEarnings = slice.reduce((s, d) => s + d.earnings, 0)
+              const netSpending = slice.reduce((s, d) => s + d.spending, 0)
+              const net = netEarnings - netSpending
+              const isPositive = net >= 0
+              return (
+                <p
+                  style={{
+                    margin: '14px 0 0',
+                    fontSize: 12,
+                    color: '#606060',
+                    borderTop: '1px solid rgba(255,255,255,0.06)',
+                    paddingTop: 12,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <span style={{ color: '#808080', fontWeight: 600 }}>
+                    Net from Oct 2025:
+                  </span>{' '}
+                  Earnings{' '}
+                  <span style={{ color: '#22c55e', fontWeight: 600 }}>
+                    {fmt(netEarnings)}
+                  </span>
+                  {' − '}Spending{' '}
+                  <span style={{ color: CRIMSON, fontWeight: 600 }}>
+                    {fmt(netSpending)}
+                  </span>
+                  {' = '}
+                  <span
+                    style={{
+                      color: isPositive ? '#22c55e' : CRIMSON,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {isPositive ? '+' : ''}
+                    {fmt(net)}
+                  </span>{' '}
+                  <span
+                    style={{
+                      color: isPositive
+                        ? 'rgba(34,197,94,0.6)'
+                        : 'rgba(229,9,20,0.6)',
+                    }}
+                  >
+                    ({isPositive ? 'profit' : 'deficit'})
+                  </span>
+                </p>
+              )
+            })()}
+          </>
         </ChartCard>
 
         {/* Category trend line chart */}
