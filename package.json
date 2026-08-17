@@ -49,6 +49,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
+      "unrs-resolver",
       "lightningcss"
     ]
   }
