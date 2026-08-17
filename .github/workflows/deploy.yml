@@ -36,14 +36,24 @@ jobs:
           tags: tag:ci
 
       - name: SSH and Deploy to VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: MONGODB_URI
+          script: |
+            echo "MONGODB_URI=$MONGODB_URI" > /home/ubuntu/.env
+
+            sudo podman pull ghcr.io/${{ github.repository_owner }}/money-waster:latest
+            sudo podman stop money-waster || true
+            sudo podman rm money-waster || true
+
+            sudo podman run -d \
+              --name money-waster \
+              -p 8080:80 \
+              --env-file /home/ubuntu/.env \
+              --restart always \
+              ghcr.io/${{ github.repository_owner }}/money-waster:latest
         env:
-          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          VM_IP: ${{ secrets.VM_IP }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key ubuntu@$VM_IP << 'EOF'
-          echo "Connection successful! Running deployment..."
-          whoami
-          EOF
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
