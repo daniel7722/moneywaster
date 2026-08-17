@@ -41,7 +41,6 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
-            sudo podman pull ghcr.io/${{ github.repository_owner }}/money-waster:latest
-            sudo podman stop money-waster || true
-            sudo podman rm money-waster || true
-            sudo podman run -d --name react-app -p 8080:80 --restart always ghcr.io/${{ github.repository_owner }}/money-waster:latest
+            echo "Testing SSH connection..."
+            whoami
+            echo "If you see this, SSH works perfectly!"
