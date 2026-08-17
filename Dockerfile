@@ -6,7 +6,9 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY . .
 RUN pnpm run build
 
-FROM nginx:alpine
-COPY --from=builder /app/build /usr/share/nginx/html
+FROM node:22-alpine
+WORKDIR /app
+COPY --from=builder /app/.output ./.output
+ENV PORT=80
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", ".output/server/index.mjs:"]
