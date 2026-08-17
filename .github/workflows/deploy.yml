@@ -33,15 +33,13 @@ jobs:
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
-      - name: Ping VM to verify Tailscale connection
-        run: ping -c 4 ${{ secrets.VM_IP }}
-
       - name: SSH and Deploy to VM
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VM_IP }}
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             sudo podman pull ghcr.io/${{ github.repository_owner }}/money-waster:latest
             sudo podman stop money-waster || true
