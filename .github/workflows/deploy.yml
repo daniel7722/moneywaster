@@ -28,6 +28,20 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/money-waster:latest
 
+      - name: Verify Tailscale Secret Exists
+        run: |
+          if [ -z "${{ secrets.TAILSCALE_AUTHKEY }}" ]; then
+            echo "ERROR: The Tailscale Auth Key is completely blank! GitHub is not passing it."
+            exit 1
+          else
+            echo "SUCCESS: GitHub successfully injected the secret."
+          fi
+
+      - name: Join Tailscale Network
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
       - name: Join Tailscale Network
         uses: tailscale/github-action@v3
         with:
