@@ -1,6 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import mongoose from 'mongoose'
-import { connectDb } from '#/lib/db'
+import { mongoose, connectDb } from '#/lib/db'
 import { Expenses } from '#/models/expenses'
 import { Earnings } from '#/models/earnings'
 import { Categories } from '#/models/categories'

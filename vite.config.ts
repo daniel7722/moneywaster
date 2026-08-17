@@ -20,7 +20,7 @@ const config = defineConfig({
     exclude: ['mongoose', 'mongodb-client-encryption'],
   },
   ssr: {
-    external: ['mongodb-client-encryption'],
+    external: ['mongoose', 'mongodb', 'mongodb-client-encryption'],
   },
 })
 

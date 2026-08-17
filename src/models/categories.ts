@@ -1,4 +1,4 @@
-import mongoose from 'mongoose'
+import { mongoose } from '#/lib/db'
 
 const { Schema, model } = mongoose
 
