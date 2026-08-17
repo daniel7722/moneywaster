@@ -12,4 +12,4 @@ COPY --from=builder /app/.output ./.output
 ENV PORT=80
 
 EXPOSE 80
-CMD ["node", ".output/server/index.mjs:"]
+CMD ["node", ".output/server/index.mjs"]
