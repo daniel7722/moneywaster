@@ -34,13 +34,14 @@ jobs:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
       - name: SSH and Deploy to VM
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VM_IP }}
-          username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          script: |
-            echo "Testing SSH connection..."
-            whoami
-            echo "If you see this, SSH works perfectly!"
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VM_IP: ${{ secrets.VM_IP }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key ubuntu@$VM_IP << 'EOF'
+          echo "Connection successful! Running deployment..."
+          whoami
+          EOF
