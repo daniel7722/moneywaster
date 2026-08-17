@@ -33,6 +33,9 @@ jobs:
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
+      - name: Ping VM to verify Tailscale connection
+        run: ping -c 4 ${{ secrets.VM_IP }}
+
       - name: SSH and Deploy to VM
         uses: appleboy/ssh-action@v1.0.3
         with:
